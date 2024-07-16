@@ -26,10 +26,10 @@ jobs:
       run: yarn install --frozen-lockfile
 
     - name: Compile contracts
-      run: yarn hardhat compile
+      run: yarn build
 
     - name: Run tests
-      run: yarn hardhat test
+      run: yarn test
 
   coverage:
     runs-on: ubuntu-latest
