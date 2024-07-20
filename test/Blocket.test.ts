@@ -1,10 +1,10 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Blockets } from "../typechain-types";
+import { Blocket } from "../typechain-types";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
 describe("Blocket", function () {
-  let blocket: Blockets;
+  let blocket: Blocket;
   let owner: SignerWithAddress;
   let addr1: SignerWithAddress;
   let addr2: SignerWithAddress;
@@ -20,10 +20,6 @@ describe("Blocket", function () {
   describe("Deployment", function () {
     it("Should set the right owner", async function () {
       expect(await blocket.owner()).to.equal(owner.address);
-    });
-
-    it("Should set the right admin", async function () {
-      expect(await blocket.admin()).to.equal(owner.address);
     });
 
     it("Should have the correct name and symbol", async function () {
@@ -50,6 +46,12 @@ describe("Blocket", function () {
         blocket.connect(addr1).mint(addr2.address)
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
+
+    it("Should emit a Minted event when a token is minted", async function () {
+      await expect(blocket.mint(addr1.address))
+        .to.emit(blocket, "Minted")
+        .withArgs(addr1.address, 0);
+    });
   });
 
   describe("Base URI", function () {
@@ -57,18 +59,41 @@ describe("Blocket", function () {
       await blocket.mint(addr1.address);
       expect(await blocket.tokenURI(0)).to.equal("https://yourdomain.com/metadata/0");
     });
+
+    it("Should allow owner to change the base URI", async function () {
+      await blocket.setBaseURI("https://newdomain.com/metadata/");
+      await blocket.mint(addr1.address);
+      expect(await blocket.tokenURI(0)).to.equal("https://newdomain.com/metadata/0");
+    });
   });
 
-  it("Should mint and transfer an NFT to someone", async function () {
-    const [owner, addr1] = await ethers.getSigners();
+  describe("Pausable", function () {
+    it("Should allow owner to pause and unpause the contract", async function () {
+      await blocket.pause();
+      await expect(blocket.mint(addr1.address)).to.be.revertedWith("Pausable: paused");
 
-    let balance = await blocket.balanceOf(addr1.address);
-    expect(balance).to.equal(0);
+      await blocket.unpause();
+      await blocket.mint(addr1.address);
+      expect(await blocket.ownerOf(0)).to.equal(addr1.address);
+    });
 
-    const mintTx = await blocket.mint(addr1.address);
-    await mintTx.wait();
+    it("Should not allow non-owner to pause or unpause the contract", async function () {
+      await expect(blocket.connect(addr1).pause()).to.be.revertedWith("Ownable: caller is not the owner");
+      await blocket.pause();
+      await expect(blocket.connect(addr1).unpause()).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+  });
 
-    balance = await blocket.balanceOf(addr1.address);
-    expect(balance).to.equal(1);
+  describe("Mint and Transfer", function () {
+    it("Should mint and transfer an NFT to someone", async function () {
+      let balance = await blocket.balanceOf(addr1.address);
+      expect(balance).to.equal(0);
+
+      const mintTx = await blocket.mint(addr1.address);
+      await mintTx.wait();
+
+      balance = await blocket.balanceOf(addr1.address);
+      expect(balance).to.equal(1);
+    });
   });
 });
